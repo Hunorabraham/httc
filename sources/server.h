@@ -9,6 +9,7 @@
   #define DEBUG_LOG(...) {}
 #endif
 
+
 void server_test(){  
   printf("test");
 }
@@ -49,6 +50,27 @@ int start_server(const char* addr, unsigned int port){
     return 1;
   }
   DEBUG_LOG("bind succesful\n");
+  
+  int backlog = 100;
+  if(listen(server_socket, backlog) == SOCKET_ERROR){
+    DEBUG_LOG("ERR: failed to establish listenning, err code: %d\n", WSAGetLastError());
+    return 1;
+  }
+  DEBUG_LOG("Started listening\n");
+  
+  struct sockaddr client_addr;
+  int addr_size = sizeof(struct sockaddr);
+  int client_socket = accept(server_socket, &client_addr, &addr_size);
+  if(client_socket == INVALID_SOCKET){
+    DEBUG_LOG("ERR: failed connection, err code: %d\n", WSAGetLastError());
+    return 1;
+  }
+  DEBUG_LOG("Client connected\n");
+  int bytes_sent = send(client_socket, "HTTP/1.1 200 OK\r\n\r\n", 19,0);
+  if(bytes_sent == SOCKET_ERROR){
+    DEBUG_LOG("ERR: response failed, err code: %d \n", WSAGetLastError());
+  }
+  DEBUG_LOG("response sent succesfully\n");
   
   //closesocket(server_socket);
   //WSACleanup();
