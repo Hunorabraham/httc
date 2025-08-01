@@ -9,12 +9,24 @@
   #define DEBUG_LOG(...) {}
 #endif
 
+typedef struct Server{
+  int socket;
+  struct sockaddr_in addres;
+} Server;
+
+Server* createServer(const char* addr, unsigned int port){
+  Server* server = malloc(sizeof(Server));
+  server->addres.sin_family = AF_INET;
+  server->addres.sin_addr.s_addr = inet_addr(addr);
+  server->addres.sin_port = htons(port);
+  return server;
+}
 
 void server_test(){  
   printf("test");
 }
 
-int start_server(const char* addr, unsigned int port){
+int start_server(Server* server){
   WORD version_requiested = MAKEWORD(1,1);
   WSADATA wsa_data;
   int err = WSAStartup(version_requiested, &wsa_data);
@@ -24,27 +36,20 @@ int start_server(const char* addr, unsigned int port){
   }
   DEBUG_LOG("startup succesful\n");
   
-  int server_socket;
-  server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if(server_socket == INVALID_SOCKET){
+  server->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if(server->socket == INVALID_SOCKET){
     DEBUG_LOG("ERR: Socket creation failed, err number: %d\n", WSAGetLastError());
     return 1;
   }
   DEBUG_LOG("socket created succesfully\n");
   
   int reuse = 1;
-  if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *) &reuse, sizeof(reuse)) == SOCKET_ERROR){
+  if(setsockopt(server->socket, SOL_SOCKET, SO_REUSEADDR, (char *) &reuse, sizeof(reuse)) == SOCKET_ERROR){
     DEBUG_LOG("ERR: socketoption failed, err number: %d\n", WSAGetLastError());
     return 1;
   }
   
-  struct sockaddr_in service = {
-    .sin_family = AF_INET,
-    .sin_addr.s_addr = inet_addr(addr),
-    .sin_port = htons(port),
-  };
-  
-  err = bind(server_socket, (SOCKADDR *) &service, sizeof(service));
+  err = bind(server->socket, (SOCKADDR *) &server->addres, sizeof(server->addres));
   if(err != 0){
     DEBUG_LOG("ERR: binding failed, err code: %d\n", WSAGetLastError());
     return 1;
@@ -52,7 +57,7 @@ int start_server(const char* addr, unsigned int port){
   DEBUG_LOG("bind succesful\n");
   
   int backlog = 100;
-  if(listen(server_socket, backlog) == SOCKET_ERROR){
+  if(listen(server->socket, backlog) == SOCKET_ERROR){
     DEBUG_LOG("ERR: failed to establish listenning, err code: %d\n", WSAGetLastError());
     return 1;
   }
@@ -60,7 +65,7 @@ int start_server(const char* addr, unsigned int port){
   
   struct sockaddr client_addr;
   int addr_size = sizeof(struct sockaddr);
-  int client_socket = accept(server_socket, &client_addr, &addr_size);
+  int client_socket = accept(server->socket, &client_addr, &addr_size);
   if(client_socket == INVALID_SOCKET){
     DEBUG_LOG("ERR: failed connection, err code: %d\n", WSAGetLastError());
     return 1;
@@ -72,7 +77,7 @@ int start_server(const char* addr, unsigned int port){
   }
   DEBUG_LOG("response sent succesfully\n");
   
-  //closesocket(server_socket);
+  //closesocket(server->socket);
   //WSACleanup();
   return 0;
 }
