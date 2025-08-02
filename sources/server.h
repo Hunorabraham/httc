@@ -8,6 +8,9 @@
   #define DEBUG_LOG(...) {}
 #endif
 
+#define DEFAULT_SIZE 256
+#define GROWTH_SIZE 256
+
 typedef struct Server{
   int socket;
   struct sockaddr_in addres;
@@ -61,6 +64,22 @@ int initServer(Server* server){
   }
   DEBUG_LOG("Started listening\n");
   
+  
+  //int bytes_sent = send(client_socket, "HTTP/1.1 200 OK\r\n\r\n", 19,0);
+  //if(bytes_sent == SOCKET_ERROR){
+  //  err = WSAGetLastError();
+  //  DEBUG_LOG("ERR: response failed, err code: %d \n", err);
+  //  return err;
+  //}
+  //DEBUG_LOG("response sent succesfully\n");
+  
+  //closesocket(server->socket);
+  //WSACleanup();
+  return 0;
+}
+
+int handleNextRequest(Server* server, int (*handler_func)(char*, int, int)){
+  int err;
   struct sockaddr client_addr;
   int addr_size = sizeof(struct sockaddr);
   int client_socket = accept(server->socket, &client_addr, &addr_size);
@@ -70,18 +89,33 @@ int initServer(Server* server){
     return err;
   }
   DEBUG_LOG("Client connected\n");
-  int bytes_sent = send(client_socket, "HTTP/1.1 200 OK\r\n\r\n", 19,0);
-  if(bytes_sent == SOCKET_ERROR){
-    DEBUG_LOG("ERR: response failed, err code: %d \n", err);
+  char* receive_buf = malloc(sizeof(char) * DEFAULT_SIZE);
+  int buf_len = DEFAULT_SIZE;
+  int bytes_received = 0;  
+  while(1){
+    bytes_received = recv(client_socket, receive_buf, buf_len, MSG_PEEK);
+    if(bytes_received == SOCKET_ERROR){
+      err = WSAGetLastError();
+      DEBUG_LOG("ERR: failed to read incoming request, err code: %d\n", err);
+      return err;
+    }
+    if(bytes_received < buf_len) break;
+    
+    DEBUG_LOG("buffer too small, increasing size: %d -> %d\n", buf_len, buf_len + GROWTH_SIZE);
+    buf_len += GROWTH_SIZE;
+    realloc(receive_buf, buf_len);
+    continue;
   }
-  DEBUG_LOG("response sent succesfully\n");
-  
-  //closesocket(server->socket);
-  //WSACleanup();
-  return 0;
+  if(bytes_received == 0){
+    //gracefully closed will be treated like force closed; for now
+    return WSAECONNRESET;
+  }
+  //data succesfully read
+  realloc(receive_buf, bytes_received+1);
+  receive_buf[bytes_received] = '\0';
+  DEBUG_LOG("Calling handler callback with: %d bytes of data\n", bytes_received);
+  return handler_func(receive_buf, bytes_received, client_socket);
 }
-
-
 
 void deleteServer(Server* server){
   closesocket(server->socket);
