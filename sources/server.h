@@ -103,15 +103,22 @@ int handleNextRequest(Server* server, int (*handler_func)(char*, int, int)){
     
     DEBUG_LOG("buffer too small, increasing size: %d -> %d\n", buf_len, buf_len + GROWTH_SIZE);
     buf_len += GROWTH_SIZE;
-    realloc(receive_buf, buf_len);
+    realloc(receive_buf, sizeof(char) * buf_len);
     continue;
+  }
+  //remove data from input queue
+  bytes_received = recv(client_socket, receive_buf, buf_len, 0);
+  if(bytes_received == SOCKET_ERROR){
+      err = WSAGetLastError();
+      DEBUG_LOG("ERR: failed to read incoming request, err code: %d\n", err);
+      return err;
   }
   if(bytes_received == 0){
     //gracefully closed will be treated like force closed; for now
     return WSAECONNRESET;
   }
   //data succesfully read
-  realloc(receive_buf, bytes_received+1);
+  realloc(receive_buf, sizeof(char) * (bytes_received+1));
   receive_buf[bytes_received] = '\0';
   DEBUG_LOG("Calling handler callback with: %d bytes of data\n", bytes_received);
   return handler_func(receive_buf, bytes_received, client_socket);
